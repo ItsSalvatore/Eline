@@ -76,9 +76,6 @@ npm-debug.*
 yarn-debug.*
 yarn-error.*
 
-# Personal photos (keep template only)
-assets/photos/*.jpg
-assets/photos/*.jpeg
-assets/photos/*.png
-assets/photos/*.webp
+# Photos are now included in git for easier deployment
+# (Repo is private anyway)
 !assets/photos/README.md
