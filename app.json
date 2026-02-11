@@ -24,7 +24,17 @@
       "predictiveBackGestureEnabled": false
     },
     "web": {
-      "favicon": "./assets/favicon.png"
+      "favicon": "./assets/favicon.png",
+      "bundler": "metro",
+      "output": "single",
+      "name": "Voor Eline ❤️",
+      "shortName": "Eline",
+      "description": "Een speciale Valentijnsverrassing voor Eline",
+      "themeColor": "#FFB6C1",
+      "backgroundColor": "#FFF5E1",
+      "display": "standalone",
+      "startUrl": "/",
+      "orientation": "portrait"
     }
   }
 }

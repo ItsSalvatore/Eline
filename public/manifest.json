@@ -1,0 +1,26 @@
+{
+  "name": "Voor Eline ❤️",
+  "short_name": "Eline",
+  "description": "Een speciale Valentijnsverrassing voor Eline",
+  "start_url": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "theme_color": "#FFB6C1",
+  "background_color": "#FFF5E1",
+  "icons": [
+    {
+      "src": "/assets/icon.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/assets/icon.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["lifestyle", "entertainment"],
+  "lang": "nl-NL"
+}
