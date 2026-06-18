@@ -1,9 +1,9 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
   StyleSheet,
-  Dimensions,
+  useWindowDimensions,
   Animated,
   PanResponder,
   Alert,
@@ -13,102 +13,68 @@ import { BentoMemories } from './BentoMemories';
 import { IconButton } from './IconButton';
 import { Chapter } from '../types';
 import { ArrowLeftIcon, ArrowRightIcon } from '../icons';
-
-const { width } = Dimensions.get('window');
-const SWIPE_THRESHOLD = width * 0.25;
+import { clampChapterIndex } from '../utils/chapterHelpers';
+import { colors } from '../theme/tokens';
 
 interface BookViewProps {
+  bookId: string;
   chapters: Chapter[];
+  initialChapter?: number;
   onChapterChange?: (chapter: number) => void;
+  onExitToLibrary?: () => void;
+  onPageVisited?: (page: Chapter, pageIndex: number) => void;
+  openedMemoryIds?: number[];
 }
 
-export const BookView: React.FC<BookViewProps> = ({ chapters, onChapterChange }) => {
-  const [currentIndex, setCurrentIndex] = useState(0);
+export const BookView: React.FC<BookViewProps> = ({
+  bookId,
+  chapters,
+  initialChapter = 0,
+  onChapterChange,
+  onExitToLibrary,
+  onPageVisited,
+  openedMemoryIds = [],
+}) => {
+  const { width } = useWindowDimensions();
+  const swipeThreshold = width * 0.25;
+
+  const [currentIndex, setCurrentIndex] = useState(() =>
+    clampChapterIndex(initialChapter, chapters.length)
+  );
+  const currentIndexRef = useRef(currentIndex);
   const pan = useRef(new Animated.Value(0)).current;
   const opacity = useRef(new Animated.Value(1)).current;
 
-  const goToChapterMenu = () => {
-    // Go back to the chapter's bento menu (page 2 for Chapter 1)
-    const menuIndex = chapters.findIndex(ch => ch.isBentoMenu);
-    if (menuIndex !== -1) {
-      Animated.timing(opacity, {
-        toValue: 0,
-        duration: 200,
-        useNativeDriver: true,
-      }).start(() => {
-        setCurrentIndex(menuIndex);
-        pan.setValue(0);
-        Animated.timing(opacity, {
-          toValue: 1,
-          duration: 300,
-          useNativeDriver: true,
-        }).start();
-        onChapterChange?.(menuIndex);
-      });
+  useEffect(() => {
+    currentIndexRef.current = currentIndex;
+  }, [currentIndex]);
+
+  useEffect(() => {
+    const currentChapter = chapters[currentIndex];
+    if (currentChapter) {
+      onPageVisited?.(currentChapter, currentIndex);
     }
-  };
+  }, [chapters, currentIndex, onPageVisited]);
 
-  const panResponder = useRef(
-    PanResponder.create({
-      onStartShouldSetPanResponder: () => false,
-      onMoveShouldSetPanResponder: (_, gestureState) => {
-        // Only capture horizontal swipes (more horizontal than vertical)
-        const isHorizontalSwipe = Math.abs(gestureState.dx) > Math.abs(gestureState.dy) && Math.abs(gestureState.dx) > 10;
-        return isHorizontalSwipe;
-      },
-      onPanResponderMove: (_, gestureState) => {
-        // Only allow swipe if not at boundaries
-        if (
-          (gestureState.dx < 0 && currentIndex < chapters.length - 1) ||
-          (gestureState.dx > 0 && currentIndex > 0)
-        ) {
-          pan.setValue(gestureState.dx);
-        }
-      },
-      onPanResponderRelease: (_, gestureState) => {
-        const swipeLeft = gestureState.dx < -SWIPE_THRESHOLD; // Swipe left = next page
-        const swipeRight = gestureState.dx > SWIPE_THRESHOLD; // Swipe right = previous page
-        const currentChapter = chapters[currentIndex];
+  const setVisitedIndex = useCallback(
+    (index: number) => {
+      setCurrentIndex(index);
+      currentIndexRef.current = index;
+      onChapterChange?.(index);
+    },
+    [onChapterChange]
+  );
 
-        if (swipeLeft && currentIndex < chapters.length - 1) {
-          // Swiping LEFT = going to NEXT chapter (forward →)
-          const nextChapter = chapters[currentIndex + 1];
-          
-          // Allow if next chapter is unlocked
-          if (nextChapter.unlocked) {
-            goToNextChapter();
-          } else {
-            // Show locked message
-            Animated.spring(pan, {
-              toValue: 0,
-              useNativeDriver: true,
-              tension: 50,
-              friction: 7,
-            }).start();
-            Alert.alert(
-              '🔒 Vergrendeld',
-              'Dit hoofdstuk is nog niet beschikbaar. Kom binnenkort terug voor meer!',
-              [{ text: 'Oké', style: 'default' }]
-            );
-          }
-        } else if (swipeRight && currentIndex > 0) {
-          // Swiping RIGHT = going to PREVIOUS chapter (back ←)
-          // Note: Swipe is disabled on memory pages via panHandlers check
-          goToPreviousChapter();
-        } else {
-          // Snap back - didn't swipe far enough or at boundary
-          Animated.spring(pan, {
-            toValue: 0,
-            useNativeDriver: true,
-            tension: 50,
-            friction: 7,
-          }).start();
-        }
-      },
-    })
-  ).current;
+  const snapBack = useCallback(() => {
+    Animated.spring(pan, {
+      toValue: 0,
+      useNativeDriver: true,
+      tension: 50,
+      friction: 7,
+    }).start();
+  }, [pan]);
 
-  const goToNextChapter = () => {
+  const goToNextChapter = useCallback(() => {
     Animated.parallel([
       Animated.timing(pan, {
         toValue: -width,
@@ -121,7 +87,12 @@ export const BookView: React.FC<BookViewProps> = ({ chapters, onChapterChange })
         useNativeDriver: true,
       }),
     ]).start(() => {
-      setCurrentIndex(currentIndex + 1);
+      setCurrentIndex((prev) => {
+        const next = prev + 1;
+        onChapterChange?.(next);
+        currentIndexRef.current = next;
+        return next;
+      });
       pan.setValue(width);
       Animated.parallel([
         Animated.timing(pan, {
@@ -135,11 +106,10 @@ export const BookView: React.FC<BookViewProps> = ({ chapters, onChapterChange })
           useNativeDriver: true,
         }),
       ]).start();
-      onChapterChange?.(currentIndex + 1);
     });
-  };
+  }, [width, pan, opacity, onChapterChange]);
 
-  const goToPreviousChapter = () => {
+  const goToPreviousChapter = useCallback(() => {
     Animated.parallel([
       Animated.timing(pan, {
         toValue: width,
@@ -152,7 +122,12 @@ export const BookView: React.FC<BookViewProps> = ({ chapters, onChapterChange })
         useNativeDriver: true,
       }),
     ]).start(() => {
-      setCurrentIndex(currentIndex - 1);
+      setCurrentIndex((prev) => {
+        const next = prev - 1;
+        onChapterChange?.(next);
+        currentIndexRef.current = next;
+        return next;
+      });
       pan.setValue(-width);
       Animated.parallel([
         Animated.timing(pan, {
@@ -166,37 +141,126 @@ export const BookView: React.FC<BookViewProps> = ({ chapters, onChapterChange })
           useNativeDriver: true,
         }),
       ]).start();
-      onChapterChange?.(currentIndex - 1);
     });
-  };
+  }, [width, pan, opacity, onChapterChange]);
 
-  const goToMemory = (memoryId: number) => {
-    // Find the chapter with this memoryId
-    const targetIndex = chapters.findIndex(ch => ch.memoryId === memoryId);
-    if (targetIndex !== -1) {
-      Animated.parallel([
-        Animated.timing(opacity, {
-          toValue: 0,
-          duration: 200,
-          useNativeDriver: true,
-        }),
-      ]).start(() => {
-        setCurrentIndex(targetIndex);
+  const navigationRef = useRef({ goToNextChapter, goToPreviousChapter, snapBack });
+  navigationRef.current = { goToNextChapter, goToPreviousChapter, snapBack };
+
+  const goToChapterMenu = useCallback(() => {
+    const menuIndex = chapters.findIndex((ch) => ch.isBentoMenu);
+    if (menuIndex === -1) return;
+
+    Animated.timing(opacity, {
+      toValue: 0,
+      duration: 200,
+      useNativeDriver: true,
+    }).start(() => {
+      setVisitedIndex(menuIndex);
+      pan.setValue(0);
+      Animated.timing(opacity, {
+        toValue: 1,
+        duration: 300,
+        useNativeDriver: true,
+      }).start();
+    });
+  }, [chapters, opacity, pan, setVisitedIndex]);
+
+  const panResponder = useMemo(
+    () =>
+      PanResponder.create({
+        onStartShouldSetPanResponder: () => false,
+        onMoveShouldSetPanResponder: (_, gestureState) => {
+          return (
+            Math.abs(gestureState.dx) > Math.abs(gestureState.dy) &&
+            Math.abs(gestureState.dx) > 10
+          );
+        },
+        onPanResponderMove: (_, gestureState) => {
+          const idx = currentIndexRef.current;
+          if (
+            (gestureState.dx < 0 && idx < chapters.length - 1) ||
+            (gestureState.dx > 0 && idx > 0)
+          ) {
+            pan.setValue(gestureState.dx);
+          }
+        },
+        onPanResponderRelease: (_, gestureState) => {
+          const idx = currentIndexRef.current;
+          const swipeLeft = gestureState.dx < -swipeThreshold;
+          const swipeRight = gestureState.dx > swipeThreshold;
+          const { goToNextChapter: next, goToPreviousChapter: prev, snapBack: snap } =
+            navigationRef.current;
+
+          if (swipeLeft && idx < chapters.length - 1) {
+            const nextChapter = chapters[idx + 1];
+            if (nextChapter.unlocked) {
+              next();
+            } else {
+              snap();
+              Alert.alert(
+                'Vergrendeld',
+                'Dit hoofdstuk is nog niet beschikbaar. Kom binnenkort terug voor meer!',
+                [{ text: 'Oké', style: 'default' }]
+              );
+            }
+          } else if (swipeRight && idx > 0) {
+            prev();
+          } else {
+            snap();
+          }
+        },
+      }),
+    [chapters, pan, swipeThreshold]
+  );
+
+  const goToMemory = useCallback(
+    (memoryId: number) => {
+      const targetIndex = chapters.findIndex((ch) => ch.memoryId === memoryId);
+      if (targetIndex === -1) return;
+
+      Animated.timing(opacity, {
+        toValue: 0,
+        duration: 200,
+        useNativeDriver: true,
+      }).start(() => {
+        setVisitedIndex(targetIndex);
         pan.setValue(0);
         Animated.timing(opacity, {
           toValue: 1,
           duration: 300,
           useNativeDriver: true,
         }).start();
-        onChapterChange?.(targetIndex);
       });
-    }
-  };
+    },
+    [chapters, opacity, pan, setVisitedIndex]
+  );
 
   const currentChapter = chapters[currentIndex];
 
+  const memoryPages = useMemo(
+    () => chapters.filter((ch) => ch.memoryId),
+    [chapters]
+  );
+
+  const showBackArrow = useMemo(() => {
+    if (currentChapter.isBentoMenu || currentIndex === 0) return false;
+    const previousChapter = chapters[currentIndex - 1];
+    if (currentChapter.memoryId && !previousChapter.memoryId) return false;
+    return true;
+  }, [currentChapter, currentIndex, chapters]);
+
+  const showForwardArrow = useMemo(() => {
+    if (currentChapter.isBentoMenu || currentIndex >= chapters.length - 1) return false;
+    return chapters[currentIndex + 1].unlocked;
+  }, [currentChapter, currentIndex, chapters]);
+
+  const currentMemoryIndex = currentChapter.memoryId
+    ? memoryPages.findIndex((ch) => ch.id === currentChapter.id)
+    : -1;
+
   return (
-    <View style={styles.container}>
+    <View style={styles.container} testID={`book-view-${bookId}`}>
       <Animated.View
         style={[
           styles.pageContainer,
@@ -205,26 +269,51 @@ export const BookView: React.FC<BookViewProps> = ({ chapters, onChapterChange })
             opacity,
           },
         ]}
-        {...(!currentChapter.isBentoMenu && !currentChapter.memoryId && panResponder.panHandlers)}
+        {...(!currentChapter.isBentoMenu && !currentChapter.memoryId
+          ? panResponder.panHandlers
+          : {})}
       >
         {currentChapter.isBentoMenu ? (
-          <BentoMemories onSelectMemory={goToMemory} />
-        ) : (
-          <ChapterPage
-            chapter={currentChapter}
-            isActive={true}
+          <BentoMemories
+            chapters={chapters}
+            openedMemoryIds={openedMemoryIds}
+            onSelectMemory={goToMemory}
           />
+        ) : (
+          <ChapterPage chapter={currentChapter} isActive />
         )}
       </Animated.View>
 
-      {/* Back to Menu button - shown on memory pages */}
+      {onExitToLibrary && (
+        <View
+          style={[
+            styles.libraryButton,
+            currentChapter.memoryId
+              ? styles.libraryButtonOnMemory
+              : styles.libraryButtonDefault,
+          ]}
+        >
+          <IconButton
+            onPress={onExitToLibrary}
+            accessibilityLabel="Terug naar bibliotheek"
+            icon={
+              <View style={styles.backIconContainer}>
+                <ArrowLeftIcon size={16} color={colors.rose} />
+                <Text style={styles.backText}>Bibliotheek</Text>
+              </View>
+            }
+          />
+        </View>
+      )}
+
       {currentChapter.memoryId && (
         <View style={styles.backButton}>
           <IconButton
             onPress={goToChapterMenu}
+            accessibilityLabel="Terug naar menu"
             icon={
               <View style={styles.backIconContainer}>
-                <ArrowLeftIcon size={16} color="rgba(139, 0, 0, 0.9)" />
+                <ArrowLeftIcon size={16} color={colors.rose} />
                 <Text style={styles.backText}>Menu</Text>
               </View>
             }
@@ -232,75 +321,42 @@ export const BookView: React.FC<BookViewProps> = ({ chapters, onChapterChange })
         </View>
       )}
 
-      {/* Navigation arrows - match swipe behavior exactly */}
-      {/* LEFT arrow: Only show if we can actually go back */}
-      {(() => {
-        // Don't show on bento menu
-        if (currentChapter.isBentoMenu) return null;
-        // Don't show if we're at the beginning
-        if (currentIndex === 0) return null;
-        
-        const previousChapter = chapters[currentIndex - 1];
-        
-        // If we're on a memory, only show if previous is also a memory
-        if (currentChapter.memoryId) {
-          if (!previousChapter.memoryId) return null; // Previous is not a memory, don't show arrow
-        }
-        
-        // Show the arrow
-        return (
-          <View style={styles.navButtonLeft}>
-            <IconButton
-              onPress={goToPreviousChapter}
-              icon={<ArrowLeftIcon size={20} color="rgba(139, 0, 0, 0.8)" />}
-            />
-          </View>
-        );
-      })()}
+      {showBackArrow && (
+        <View style={styles.navButtonLeft}>
+          <IconButton
+            onPress={goToPreviousChapter}
+            accessibilityLabel="Vorige pagina"
+            icon={<ArrowLeftIcon size={20} color="rgba(139, 0, 0, 0.8)" />}
+          />
+        </View>
+      )}
 
-      {/* RIGHT arrow: Only show if we can actually go forward */}
-      {(() => {
-        // Don't show on bento menu
-        if (currentChapter.isBentoMenu) return null;
-        // Don't show if we're at the end
-        if (currentIndex >= chapters.length - 1) return null;
-        
-        const nextChapter = chapters[currentIndex + 1];
-        
-        // Only show if next chapter is unlocked
-        if (!nextChapter.unlocked) return null;
-        
-        // Show the arrow
-        return (
-          <View style={styles.navButtonRight}>
-            <IconButton
-              onPress={goToNextChapter}
-              icon={<ArrowRightIcon size={20} color="rgba(139, 0, 0, 0.8)" />}
-            />
-          </View>
-        );
-      })()}
+      {showForwardArrow && (
+        <View style={styles.navButtonRight}>
+          <IconButton
+            onPress={goToNextChapter}
+            accessibilityLabel="Volgende pagina"
+            icon={<ArrowRightIcon size={20} color="rgba(139, 0, 0, 0.8)" />}
+          />
+        </View>
+      )}
 
-      {/* Page indicator dots - only show on memory pages */}
-      {currentChapter.memoryId && (() => {
-        // Get only the memory pages (chapters with memoryId)
-        const memoryPages = chapters.filter(ch => ch.memoryId);
-        const currentMemoryIndex = memoryPages.findIndex(ch => ch.id === currentChapter.id);
-        
-        return (
-          <View style={styles.indicatorContainer}>
-            {memoryPages.map((chapter, index) => (
-              <View
-                key={chapter.id}
-                style={[
-                  styles.indicator,
-                  index === currentMemoryIndex && styles.activeIndicator,
-                ]}
-              />
-            ))}
-          </View>
-        );
-      })()}
+      {currentChapter.memoryId && currentMemoryIndex >= 0 && (
+        <View style={styles.indicatorContainer} accessibilityRole="tablist">
+          {memoryPages.map((chapter, index) => (
+            <View
+              key={chapter.id}
+              style={[
+                styles.indicator,
+                index === currentMemoryIndex && styles.activeIndicator,
+              ]}
+              accessibilityRole="tab"
+              accessibilityState={{ selected: index === currentMemoryIndex }}
+              accessibilityLabel={`Herinnering ${index + 1} van ${memoryPages.length}`}
+            />
+          ))}
+        </View>
+      )}
     </View>
   );
 };
@@ -318,6 +374,17 @@ const styles = StyleSheet.create({
     left: 20,
     zIndex: 10,
   },
+  libraryButton: {
+    position: 'absolute',
+    top: 50,
+    zIndex: 12,
+  },
+  libraryButtonDefault: {
+    left: 20,
+  },
+  libraryButtonOnMemory: {
+    right: 20,
+  },
   backIconContainer: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -326,7 +393,7 @@ const styles = StyleSheet.create({
   backText: {
     fontSize: 14,
     fontWeight: '600',
-    color: 'rgba(139, 0, 0, 0.9)',
+    color: colors.rose,
   },
   navButtonLeft: {
     position: 'absolute',
@@ -361,8 +428,5 @@ const styles = StyleSheet.create({
   activeIndicator: {
     backgroundColor: 'rgba(255, 255, 255, 0.9)',
     width: 24,
-  },
-  lockedIndicator: {
-    backgroundColor: 'rgba(255, 255, 255, 0.15)',
   },
 });

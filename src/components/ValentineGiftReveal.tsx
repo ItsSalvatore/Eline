@@ -173,9 +173,7 @@ export const ValentineGiftReveal: React.FC<ValentineGiftRevealProps> = ({ textCo
                       Cadeau {index + 1}
                     </Text>
                     {isActive && (
-                      <Animated.Text style={styles.tapHint}>
-                        👆 Tik om te openen
-                      </Animated.Text>
+                      <Text style={styles.tapHint}>Tik om te openen</Text>
                     )}
                   </View>
                 ) : isHinted && !isFullyRevealed ? (
@@ -183,11 +181,12 @@ export const ValentineGiftReveal: React.FC<ValentineGiftRevealProps> = ({ textCo
                   <Animated.View
                     style={[
                       styles.revealedContent,
-                      { 
+                      {
                         transform: [
-                          { scale: scaleAnims[index] },
-                          { scale: pulseAnims[index] }
-                        ] 
+                          {
+                            scale: Animated.multiply(scaleAnims[index], pulseAnims[index]),
+                          },
+                        ],
                       },
                     ]}
                   >
@@ -195,9 +194,7 @@ export const ValentineGiftReveal: React.FC<ValentineGiftRevealProps> = ({ textCo
                     <Text style={styles.giftName}>{gift.name}</Text>
                     <View style={styles.divider} />
                     <Text style={styles.giftDescription}>{gift.description}</Text>
-                    <Animated.Text style={styles.tapAgainHint}>
-                      👆 Tik nog een keer
-                    </Animated.Text>
+                    <Text style={styles.tapAgainHint}>Tik nog een keer</Text>
                   </Animated.View>
                 ) : (
                   // FULLY REVEALED STATE - Shows name + full message

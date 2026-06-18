@@ -4,8 +4,7 @@ import {
   Text,
   StyleSheet,
   Animated,
-  Dimensions,
-  TouchableOpacity,
+  useWindowDimensions,
   ScrollView,
   Image,
 } from 'react-native';
@@ -21,13 +20,9 @@ import {
   MessageIcon,
   MusicIcon,
   GiftIcon,
-  HeartFilledIcon,
-  SparkleFilledIcon,
 } from '../icons';
 import { RoseIcon, LilyIcon } from '../icons/flowers';
 import { ValentineGiftReveal } from './ValentineGiftReveal';
-
-const { width, height } = Dimensions.get('window');
 
 interface ChapterPageProps {
   chapter: Chapter;
@@ -35,46 +30,55 @@ interface ChapterPageProps {
 }
 
 export const ChapterPage: React.FC<ChapterPageProps> = ({ chapter, isActive }) => {
+  const { width } = useWindowDimensions();
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const scaleAnim = useRef(new Animated.Value(0.9)).current;
   const floatAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
-    if (isActive) {
-      // Fade in and scale animation
-      Animated.parallel([
-        Animated.timing(fadeAnim, {
-          toValue: 1,
-          duration: 600,
+    if (!isActive) return;
+
+    const entrance = Animated.parallel([
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 600,
+        useNativeDriver: true,
+      }),
+      Animated.spring(scaleAnim, {
+        toValue: 1,
+        tension: 50,
+        friction: 7,
+        useNativeDriver: true,
+      }),
+    ]);
+    entrance.start();
+
+    const floatLoop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(floatAnim, {
+          toValue: -8,
+          duration: 2200,
           useNativeDriver: true,
         }),
-        Animated.spring(scaleAnim, {
-          toValue: 1,
-          tension: 50,
-          friction: 7,
+        Animated.timing(floatAnim, {
+          toValue: 0,
+          duration: 2200,
           useNativeDriver: true,
         }),
-      ]).start();
+      ])
+    );
+    floatLoop.start();
 
-      // Floating animation loop
-      Animated.loop(
-        Animated.sequence([
-          Animated.timing(floatAnim, {
-            toValue: -10,
-            duration: 2000,
-            useNativeDriver: true,
-          }),
-          Animated.timing(floatAnim, {
-            toValue: 0,
-            duration: 2000,
-            useNativeDriver: true,
-          }),
-        ])
-      ).start();
-    }
-  }, [isActive]);
+    return () => {
+      entrance.stop();
+      floatLoop.stop();
+      fadeAnim.setValue(0);
+      scaleAnim.setValue(0.9);
+      floatAnim.setValue(0);
+    };
+  }, [isActive, fadeAnim, scaleAnim, floatAnim]);
 
-  const getGradientColors = (baseColor: string): string[] => {
+  const getGradientColors = (baseColor: string): [string, string, string] => {
     // Create a subtle gradient based on the base color
     return [baseColor, `${baseColor}CC`, `${baseColor}99`];
   };
@@ -101,7 +105,7 @@ export const ChapterPage: React.FC<ChapterPageProps> = ({ chapter, isActive }) =
   };
 
   return (
-    <View style={[styles.container, { backgroundColor: chapter.backgroundColor }]}>
+    <View style={[styles.container, { width, backgroundColor: chapter.backgroundColor }]}>
       <LinearGradient
         colors={getGradientColors(chapter.backgroundColor)}
         style={styles.gradient}
@@ -194,7 +198,6 @@ export const ChapterPage: React.FC<ChapterPageProps> = ({ chapter, isActive }) =
             {/* Locked indicator */}
             {!chapter.unlocked && (
               <View style={styles.lockedContainer}>
-                <Text style={[styles.lockedIcon, { color: chapter.textColor }]}>🔒</Text>
                 <Text style={[styles.lockedText, { color: chapter.textColor }]}>
                   Dit hoofdstuk is nog vergrendeld
                 </Text>
@@ -223,16 +226,6 @@ export const ChapterPage: React.FC<ChapterPageProps> = ({ chapter, isActive }) =
           <RoseIcon size={35} color={`${chapter.textColor}30`} />
         </Animated.View>
         
-        <Animated.Text
-          style={[
-            styles.floatingHeart,
-            styles.heart1,
-            { transform: [{ translateY: Animated.multiply(floatAnim, -0.8) }] },
-          ]}
-        >
-          ❤️
-        </Animated.Text>
-
         <Animated.View
           style={[
             styles.floatingDecoration,
@@ -242,36 +235,6 @@ export const ChapterPage: React.FC<ChapterPageProps> = ({ chapter, isActive }) =
         >
           <LilyIcon size={32} color={`${chapter.textColor}25`} />
         </Animated.View>
-
-        <Animated.Text
-          style={[
-            styles.floatingHeart,
-            styles.heart2,
-            { transform: [{ translateY: Animated.multiply(floatAnim, 0.6) }] },
-          ]}
-        >
-          💕
-        </Animated.Text>
-
-        <Animated.View
-          style={[
-            styles.floatingDecoration,
-            styles.decoration3,
-            { transform: [{ translateY: floatAnim }] },
-          ]}
-        >
-          <RoseIcon size={28} color={`${chapter.textColor}20`} />
-        </Animated.View>
-
-        <Animated.Text
-          style={[
-            styles.floatingHeart,
-            styles.heart3,
-            { transform: [{ translateY: Animated.multiply(floatAnim, -0.5) }] },
-          ]}
-        >
-          💝
-        </Animated.Text>
       </LinearGradient>
     </View>
   );
@@ -279,8 +242,7 @@ export const ChapterPage: React.FC<ChapterPageProps> = ({ chapter, isActive }) =
 
 const styles = StyleSheet.create({
   container: {
-    width,
-    height,
+    flex: 1,
   },
   gradient: {
     flex: 1,
@@ -362,10 +324,6 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255, 255, 255, 0.2)',
     borderRadius: 15,
   },
-  lockedIcon: {
-    fontSize: 40,
-    marginBottom: 10,
-  },
   lockedText: {
     fontSize: 16,
     fontStyle: 'italic',
@@ -391,27 +349,6 @@ const styles = StyleSheet.create({
   decoration2: {
     top: 250,
     left: 20,
-  },
-  decoration3: {
-    bottom: 200,
-    right: 35,
-  },
-  floatingHeart: {
-    position: 'absolute',
-    fontSize: 28,
-    opacity: 0.25,
-  },
-  heart1: {
-    top: 140,
-    right: 45,
-  },
-  heart2: {
-    bottom: 180,
-    left: 30,
-  },
-  heart3: {
-    top: 320,
-    left: 50,
   },
   imageContainer: {
     marginVertical: 20,

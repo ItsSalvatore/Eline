@@ -4,13 +4,17 @@ import {
   Animated,
   StyleSheet,
   ViewStyle,
+  Platform,
 } from 'react-native';
+import { BlurView } from 'expo-blur';
+import { glass, radius } from '../theme/tokens';
 
 interface IconButtonProps {
   onPress: () => void;
   icon: React.ReactNode;
   style?: ViewStyle;
   accentColor?: boolean;
+  accessibilityLabel?: string;
 }
 
 export const IconButton: React.FC<IconButtonProps> = ({
@@ -18,6 +22,7 @@ export const IconButton: React.FC<IconButtonProps> = ({
   icon,
   style,
   accentColor = false,
+  accessibilityLabel,
 }) => {
   const scaleAnim = useRef(new Animated.Value(1)).current;
   const opacityAnim = useRef(new Animated.Value(1)).current;
@@ -25,13 +30,13 @@ export const IconButton: React.FC<IconButtonProps> = ({
   const handlePressIn = () => {
     Animated.parallel([
       Animated.spring(scaleAnim, {
-        toValue: 0.98,
+        toValue: 0.96,
         useNativeDriver: true,
         tension: 300,
         friction: 10,
       }),
       Animated.timing(opacityAnim, {
-        toValue: 0.7,
+        toValue: 0.85,
         duration: 100,
         useNativeDriver: true,
       }),
@@ -60,10 +65,12 @@ export const IconButton: React.FC<IconButtonProps> = ({
       onPressIn={handlePressIn}
       onPressOut={handlePressOut}
       activeOpacity={1}
+      accessibilityRole="button"
+      accessibilityLabel={accessibilityLabel}
     >
       <Animated.View
         style={[
-          styles.container,
+          styles.wrapper,
           style,
           accentColor && styles.accent,
           {
@@ -72,21 +79,44 @@ export const IconButton: React.FC<IconButtonProps> = ({
           },
         ]}
       >
-        {icon}
+        <BlurView
+          intensity={glass.blurIntensity}
+          tint={glass.tint}
+          style={[
+            styles.blur,
+            Platform.OS === 'android' && styles.androidFallback,
+          ]}
+        >
+          {icon}
+        </BlurView>
+        <Animated.View style={styles.innerBorder} pointerEvents="none" />
       </Animated.View>
     </TouchableOpacity>
   );
 };
 
 const styles = StyleSheet.create({
-  container: {
+  wrapper: {
+    borderRadius: radius.sm,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: glass.border,
+  },
+  blur: {
     padding: 12,
-    borderRadius: 12,
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
     justifyContent: 'center',
     alignItems: 'center',
   },
+  androidFallback: {
+    backgroundColor: 'rgba(255, 255, 255, 0.75)',
+  },
+  innerBorder: {
+    ...StyleSheet.absoluteFillObject,
+    borderRadius: radius.sm,
+    borderTopWidth: 1,
+    borderTopColor: glass.innerHighlight,
+  },
   accent: {
-    backgroundColor: 'rgba(255, 182, 193, 0.3)',
+    borderColor: 'rgba(139, 0, 0, 0.3)',
   },
 });

@@ -1,11 +1,10 @@
-import React, { useRef, useEffect } from 'react';
+import React, { useRef, useEffect, useMemo } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   Animated,
   TouchableOpacity,
-  Dimensions,
   ScrollView,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -13,44 +12,72 @@ import { RoseIcon, LilyIcon } from '../icons/flowers';
 import {
   HeartIcon,
   SparkleIcon,
-  PhotoIcon,
   MapPinIcon,
   ClockIcon,
   MessageIcon,
-  MusicIcon,
   GiftIcon,
 } from '../icons';
-
-const { width } = Dimensions.get('window');
-
-interface Memory {
-  id: number;
-  title: string;
-  emoji: string;
-  color: string;
-  icon: React.ReactNode;
-  order: number;
-}
+import { Chapter } from '../types';
+import { getMemoryChapters } from '../utils/chapterHelpers';
+import { colors, spacing, radius, shadows } from '../theme/tokens';
 
 interface BentoMemoriesProps {
+  chapters: Chapter[];
+  openedMemoryIds?: number[];
   onSelectMemory: (memoryId: number) => void;
 }
 
-export const BentoMemories: React.FC<BentoMemoriesProps> = ({ onSelectMemory }) => {
+const renderChapterIcon = (chapter: Chapter, size = 28) => {
+  const iconColor = chapter.textColor;
+  switch (chapter.icon) {
+    case 'message':
+      return <MessageIcon size={size} color={iconColor} />;
+    case 'sparkle':
+      return <SparkleIcon size={size} color={iconColor} />;
+    case 'gift':
+      return <GiftIcon size={size} color={iconColor} />;
+    case 'clock':
+      return <ClockIcon size={size} color={iconColor} />;
+    case 'heart':
+      return <HeartIcon size={size} color={iconColor} />;
+    case 'map':
+      return <MapPinIcon size={size} color={iconColor} />;
+    default:
+      return <SparkleIcon size={size} color={iconColor} />;
+  }
+};
+
+type CardLayout = 'hero' | 'wide' | 'narrow' | 'tall' | 'stackItem' | 'featured';
+
+const getCardLayout = (memoryId: number): CardLayout => {
+  if (memoryId === 1) return 'hero';
+  if (memoryId === 2) return 'wide';
+  if (memoryId === 3) return 'narrow';
+  if (memoryId === 6) return 'tall';
+  if (memoryId === 7 || memoryId === 8) return 'stackItem';
+  if (memoryId === 10) return 'featured';
+  return 'narrow';
+};
+
+export const BentoMemories: React.FC<BentoMemoriesProps> = ({
+  chapters,
+  openedMemoryIds = [],
+  onSelectMemory,
+}) => {
   const fadeAnim = useRef(new Animated.Value(0)).current;
-  const scaleAnims = useRef(
-    Array.from({ length: 10 }, () => new Animated.Value(0))
-  ).current;
+  const memories = useMemo(() => getMemoryChapters(chapters), [chapters]);
+  const scaleAnims = useRef(memories.map(() => new Animated.Value(0))).current;
+
+  const bentoChapter = chapters.find((ch) => ch.isBentoMenu);
 
   useEffect(() => {
-    // Fade in the container
-    Animated.timing(fadeAnim, {
+    const fadeIn = Animated.timing(fadeAnim, {
       toValue: 1,
       duration: 500,
       useNativeDriver: true,
-    }).start();
+    });
+    fadeIn.start();
 
-    // Stagger animate the memory cards
     const animations = scaleAnims.map((anim, index) =>
       Animated.spring(anim, {
         toValue: 1,
@@ -61,112 +88,105 @@ export const BentoMemories: React.FC<BentoMemoriesProps> = ({ onSelectMemory }) 
       })
     );
 
-    Animated.stagger(50, animations).start();
-  }, []);
+    const stagger = Animated.stagger(50, animations);
+    stagger.start();
+    return () => {
+      fadeIn.stop();
+      stagger.stop();
+    };
+  }, [fadeAnim, scaleAnims]);
 
-  const memories: Memory[] = [
-    {
-      id: 1,
-      title: "Het Eerste Bericht",
-      emoji: "💬",
-      color: "#FFB6C1",
-      icon: <MessageIcon size={28} color="#8B0000" />,
-      order: 1,
-    },
-    {
-      id: 2,
-      title: "Kerstgala",
-      emoji: "✨",
-      color: "#DDA0DD",
-      icon: <SparkleIcon size={28} color="#4B0082" />,
-      order: 2,
-    },
-    {
-      id: 3,
-      title: "Jouw Cadeau",
-      emoji: "🎁",
-      color: "#FFDAB9",
-      icon: <GiftIcon size={28} color="#8B4726" />,
-      order: 3,
-    },
-    {
-      id: 4,
-      title: "Kerstballen",
-      emoji: "🎄",
-      color: "#FFE4E1",
-      icon: <SparkleIcon size={28} color="#8B4513" />,
-      order: 4,
-    },
-    {
-      id: 5,
-      title: "Oudjaarsavond",
-      emoji: "🐦",
-      color: "#AFEEEE",
-      icon: <ClockIcon size={28} color="#2F4F4F" />,
-      order: 5,
-    },
-    {
-      id: 6,
-      title: "Eerste Sneeuw",
-      emoji: "❄️",
-      color: "#F0F8FF",
-      icon: <SparkleIcon size={28} color="#4682B4" />,
-      order: 6,
-    },
-    {
-      id: 7,
-      title: "Sneeuwpret",
-      emoji: "⛄",
-      color: "#E6F3FF",
-      icon: <HeartIcon size={28} color="#1E3A5F" />,
-      order: 7,
-    },
-    {
-      id: 8,
-      title: "Kerstmarkt",
-      emoji: "🎅",
-      color: "#FFF5E1",
-      icon: <MapPinIcon size={28} color="#8B4513" />,
-      order: 8,
-    },
-    {
-      id: 9,
-      title: "Die Vraag",
-      emoji: "🍣",
-      color: "#FFB6C1",
-      icon: <HeartIcon size={28} color="#8B0000" />,
-      order: 9,
-    },
-    {
-      id: 10,
-      title: "Valentine's Dag",
-      emoji: "💝",
-      color: "#FFE4E1",
-      icon: <GiftIcon size={28} color="#C71585" />,
-      order: 10,
-    },
-  ];
+  const renderCard = (memory: Chapter, index: number, layout: CardLayout) => {
+    const memoryId = memory.memoryId!;
+    const isOpened = openedMemoryIds.includes(memoryId);
+    const layoutStyle =
+      layout === 'hero'
+        ? styles.heroCard
+        : layout === 'wide'
+          ? styles.wideCard
+          : layout === 'tall'
+            ? styles.tallCard
+            : layout === 'featured'
+              ? styles.featuredCard
+              : layout === 'stackItem'
+                ? styles.stackItem
+                : styles.narrowCard;
+
+    return (
+      <Animated.View
+        key={memory.id}
+        style={[
+          layoutStyle,
+          { transform: [{ scale: scaleAnims[index] ?? scaleAnims[0] }] },
+        ]}
+      >
+        <TouchableOpacity
+          style={styles.cardButton}
+          onPress={() => onSelectMemory(memoryId)}
+          activeOpacity={0.85}
+          accessibilityRole="button"
+          accessibilityLabel={`${memory.title}, herinnering ${memoryId}`}
+        >
+          <View
+            style={[
+              styles.cardSurface,
+              { backgroundColor: memory.backgroundColor },
+              isOpened && styles.cardSurfaceOpened,
+              memory.hasValentineReveal && styles.valentineBorder,
+            ]}
+          >
+            {memoryId === 1 && !isOpened && (
+              <View style={styles.startBadge}>
+                <Text style={styles.startText}>START</Text>
+              </View>
+            )}
+            {isOpened && (
+              <View style={styles.readBadge}>
+                <Text style={styles.readBadgeText}>GELEZEN</Text>
+              </View>
+            )}
+            {memory.hasValentineReveal && !isOpened && (
+              <View style={styles.valentineBadge}>
+                <Text style={styles.startText}>14 FEB</Text>
+              </View>
+            )}
+            <Text style={styles.orderNumber}>{memoryId}</Text>
+            <View style={styles.iconContainer}>{renderChapterIcon(memory)}</View>
+            <Text style={[styles.memoryTitle, { color: memory.textColor }]}>
+              {memory.title}
+            </Text>
+            {memory.date && (
+              <Text style={[styles.memoryDate, { color: memory.textColor }]}>
+                {memory.date}
+              </Text>
+            )}
+            {isOpened && <View style={styles.readUnderline} />}
+          </View>
+        </TouchableOpacity>
+      </Animated.View>
+    );
+  };
+
+  const row2 = memories.filter((m) => m.memoryId === 2 || m.memoryId === 3);
+  const row3 = memories.filter((m) => m.memoryId === 4 || m.memoryId === 5);
+  const row4Left = memories.find((m) => m.memoryId === 6);
+  const row4Right = memories.filter((m) => m.memoryId === 7 || m.memoryId === 8);
+  const row5 = memories.filter((m) => m.memoryId === 9 || m.memoryId === 10);
+  const hero = memories.find((m) => m.memoryId === 1);
 
   return (
     <View style={styles.container}>
       <LinearGradient
-        colors={['#FFB6C1', '#FF69B4', '#DDA0DD']}
+        colors={[colors.bg, colors.tintBlush, colors.tintPeach]}
         style={styles.gradient}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
       >
-        {/* Floating flowers */}
         <View style={[styles.floatingFlower, styles.rose1]}>
-          <RoseIcon size={40} color="rgba(139, 0, 0, 0.15)" />
+          <RoseIcon size={36} color="rgba(139, 0, 0, 0.12)" />
         </View>
         <View style={[styles.floatingFlower, styles.lily1]}>
-          <LilyIcon size={35} color="rgba(255, 255, 255, 0.3)" />
-        </View>
-        <View style={[styles.floatingFlower, styles.rose2]}>
-          <RoseIcon size={30} color="rgba(199, 21, 133, 0.2)" />
-        </View>
-        <View style={[styles.floatingFlower, styles.lily2]}>
-          <LilyIcon size={38} color="rgba(255, 182, 193, 0.25)" />
+          <LilyIcon size={32} color="rgba(139, 0, 0, 0.08)" />
         </View>
 
         <Animated.View style={[styles.content, { opacity: fadeAnim }]}>
@@ -174,64 +194,49 @@ export const BentoMemories: React.FC<BentoMemoriesProps> = ({ onSelectMemory }) 
             contentContainerStyle={styles.scrollContent}
             showsVerticalScrollIndicator={false}
           >
-            {/* Header */}
             <View style={styles.header}>
-              <Text style={styles.title}>Hoofdstuk 1: Het Begin</Text>
-              <Text style={styles.subtitle}>20 Nov 2025 - 14 Feb 2026</Text>
+              <Text style={styles.title}>
+                {bentoChapter?.title ?? 'Hoofdstuk 1: Het Begin'}
+              </Text>
+              <Text style={styles.subtitle}>
+                {bentoChapter?.date ?? '20 Nov 2025 - 14 Feb 2026'}
+              </Text>
               <View style={styles.divider} />
               <Text style={styles.instruction}>
-                Begin met het eerste bericht 💕{'\n'}
-                Swipe door al onze herinneringen...
+                Begin met het eerste bericht.{'\n'}
+                Kies een herinnering om te openen.
               </Text>
             </View>
 
-            {/* Bento Box Grid */}
             <View style={styles.bentoGrid}>
-              {memories.map((memory, index) => (
-                <Animated.View
-                  key={memory.id}
-                  style={[
-                    styles.memoryCard,
-                    {
-                      transform: [{ scale: scaleAnims[index] }],
-                    },
-                  ]}
-                >
-                  <TouchableOpacity
-                    style={styles.cardButton}
-                    onPress={() => onSelectMemory(memory.id)}
-                    activeOpacity={0.8}
-                  >
-                    <LinearGradient
-                      colors={[memory.color, `${memory.color}CC`]}
-                      style={styles.cardGradient}
-                      start={{ x: 0, y: 0 }}
-                      end={{ x: 1, y: 1 }}
-                    >
-                      {/* Order badge for first memory */}
-                      {memory.order === 1 && (
-                        <View style={styles.startBadge}>
-                          <Text style={styles.startText}>START</Text>
-                        </View>
-                      )}
+              {hero && renderCard(hero, 0, 'hero')}
 
-                      {/* Order number */}
-                      <Text style={styles.orderNumber}>{memory.order}</Text>
+              <View style={styles.row}>
+                {row2.map((m) =>
+                  renderCard(m, m.memoryId! - 1, getCardLayout(m.memoryId!))
+                )}
+              </View>
 
-                      {/* Icon */}
-                      <View style={styles.iconContainer}>
-                        {memory.icon}
-                      </View>
+              <View style={styles.row}>
+                {row3.map((m) =>
+                  renderCard(m, m.memoryId! - 1, getCardLayout(m.memoryId!))
+                )}
+              </View>
 
-                      {/* Emoji */}
-                      <Text style={styles.emoji}>{memory.emoji}</Text>
+              <View style={styles.row}>
+                {row4Left && renderCard(row4Left, 5, 'tall')}
+                <View style={styles.stack}>
+                  {row4Right.map((m) =>
+                    renderCard(m, m.memoryId! - 1, 'stackItem')
+                  )}
+                </View>
+              </View>
 
-                      {/* Title */}
-                      <Text style={styles.memoryTitle}>{memory.title}</Text>
-                    </LinearGradient>
-                  </TouchableOpacity>
-                </Animated.View>
-              ))}
+              <View style={styles.row}>
+                {row5.map((m) =>
+                  renderCard(m, m.memoryId! - 1, getCardLayout(m.memoryId!))
+                )}
+              </View>
             </View>
           </ScrollView>
         </Animated.View>
@@ -256,16 +261,8 @@ const styles = StyleSheet.create({
     right: 20,
   },
   lily1: {
-    top: 200,
-    left: 30,
-  },
-  rose2: {
-    bottom: 150,
-    right: 40,
-  },
-  lily2: {
-    bottom: 80,
-    left: 20,
+    bottom: 120,
+    left: 24,
   },
   content: {
     flex: 1,
@@ -276,95 +273,164 @@ const styles = StyleSheet.create({
     paddingBottom: 40,
   },
   header: {
-    alignItems: 'center',
-    marginBottom: 30,
+    alignItems: 'flex-start',
+    marginBottom: spacing.xl,
+    paddingRight: spacing.lg,
   },
   title: {
-    fontSize: 32,
-    fontWeight: 'bold',
-    color: '#8B0000',
-    textAlign: 'center',
-    marginBottom: 8,
+    fontSize: 30,
+    fontWeight: '700',
+    color: colors.rose,
+    letterSpacing: -0.5,
+    marginBottom: spacing.sm,
   },
   subtitle: {
-    fontSize: 16,
-    color: '#C71585',
+    fontSize: 15,
+    color: colors.textSecondary,
     fontStyle: 'italic',
-    marginBottom: 15,
+    marginBottom: spacing.md,
   },
   divider: {
-    width: 60,
+    width: 48,
     height: 2,
-    backgroundColor: 'rgba(139, 0, 0, 0.3)',
-    marginBottom: 15,
+    backgroundColor: colors.roseBorder,
+    marginBottom: spacing.md,
   },
   instruction: {
     fontSize: 15,
-    color: '#8B0000',
-    textAlign: 'center',
+    color: colors.textSecondary,
     lineHeight: 22,
   },
   bentoGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'space-between',
     gap: 12,
   },
-  memoryCard: {
-    width: (width - 56) / 2,
-    marginBottom: 12,
+  row: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  stack: {
+    flex: 1,
+    gap: 12,
+  },
+  heroCard: {
+    width: '100%',
+    minHeight: 110,
+  },
+  wideCard: {
+    flex: 1.2,
+    minHeight: 130,
+  },
+  narrowCard: {
+    flex: 1,
+    minHeight: 130,
+  },
+  tallCard: {
+    flex: 1,
+    minHeight: 200,
+  },
+  stackItem: {
+    flex: 1,
+    minHeight: 94,
+  },
+  featuredCard: {
+    flex: 1.15,
+    minHeight: 150,
   },
   cardButton: {
-    borderRadius: 20,
+    flex: 1,
+    borderRadius: radius.lg,
     overflow: 'hidden',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.25,
-    shadowRadius: 8,
-    elevation: 6,
+    ...shadows.card,
   },
-  cardGradient: {
-    padding: 20,
-    minHeight: 160,
+  cardSurface: {
+    flex: 1,
+    padding: spacing.lg,
+    minHeight: 120,
     justifyContent: 'center',
     alignItems: 'center',
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: colors.roseBorder,
     position: 'relative',
+  },
+  cardSurfaceOpened: {
+    borderColor: colors.rose,
+  },
+  valentineBorder: {
+    borderColor: colors.rose,
+    borderWidth: 1.5,
   },
   startBadge: {
     position: 'absolute',
     top: 8,
     right: 8,
-    backgroundColor: '#8B0000',
+    backgroundColor: colors.rose,
     paddingHorizontal: 10,
     paddingVertical: 4,
-    borderRadius: 12,
+    borderRadius: radius.sm,
+  },
+  valentineBadge: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+    backgroundColor: colors.roseLight,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: radius.sm,
   },
   startText: {
-    color: '#FFF',
+    color: colors.textOnRose,
     fontSize: 10,
-    fontWeight: 'bold',
+    fontWeight: '700',
     letterSpacing: 1,
+  },
+  readBadge: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+    backgroundColor: colors.bgElevated,
+    borderWidth: 1,
+    borderColor: colors.roseBorder,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: radius.sm,
+  },
+  readBadgeText: {
+    color: colors.rose,
+    fontSize: 9,
+    fontWeight: '700',
+    letterSpacing: 0.8,
   },
   orderNumber: {
     position: 'absolute',
     top: 12,
     left: 12,
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: 'rgba(139, 0, 0, 0.3)',
+    fontSize: 18,
+    fontWeight: '700',
+    color: 'rgba(139, 0, 0, 0.2)',
   },
   iconContainer: {
-    marginBottom: 8,
-  },
-  emoji: {
-    fontSize: 32,
-    marginBottom: 8,
+    marginBottom: spacing.sm,
   },
   memoryTitle: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#8B0000',
     textAlign: 'center',
     lineHeight: 18,
+  },
+  memoryDate: {
+    fontSize: 11,
+    marginTop: 4,
+    opacity: 0.7,
+    textAlign: 'center',
+  },
+  readUnderline: {
+    position: 'absolute',
+    left: spacing.lg,
+    right: spacing.lg,
+    bottom: spacing.md,
+    height: 2,
+    borderRadius: 1,
+    backgroundColor: colors.rose,
   },
 });

@@ -20,3 +20,13 @@ export interface StoryProgress {
   unlockedChapters: number[];
   lastVisited: string;
 }
+
+export type {
+  Book,
+  BookProgress,
+  BookProgressSummary,
+  BookStatus,
+  Library,
+  LibraryProgress,
+  StoryPage,
+} from './library';
